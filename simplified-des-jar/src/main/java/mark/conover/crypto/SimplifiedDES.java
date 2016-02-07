@@ -187,6 +187,57 @@ public class SimplifiedDES {
 			tempArray[i] = ipRightHalfArray[i];
 		}
 		
+		tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		tempRightHalfArray = new int[tempRightHalfArrayLength];
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[i] = tempArray[i];
+		}
+		
+		// Expansion Permutation
+		tempArray = permutate(tempRightHalfArray, ep);
+		
+		tempArray = xor(tempArray, k1);
+		
+		// Split the 8 bit plain text into two half arrays
+		tempLeftHalfArrayLength = tempArray.length/2;
+		tempLeftHalfArray = new int[tempLeftHalfArrayLength];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempLeftHalfArray[i] = tempArray[i];
+		}
+		
+		tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		tempRightHalfArray = new int[tempRightHalfArrayLength];
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[i] = tempArray[i];
+		}
+		
+		// S0 - Substitution box 0
+		
+		// row = bit1, bit4
+		// column = bit2, bit3
+		String row = tempLeftHalfArray[0] + "" + tempLeftHalfArray[3];
+		int rowNum = getRowOrColNum(row);
+		String column = tempLeftHalfArray[1] + "" + tempLeftHalfArray[2];
+		int colNum = getRowOrColNum(column);
+		
+		String leftHalfArraySubstitution0 = s0[rowNum][colNum];	
+		
+		// S1 - Substitution box 1
+		// row = bit1, bit4
+		// column = bit2, bit3
+		row = tempRightHalfArray[0] + "" + tempRightHalfArray[3];
+		rowNum = getRowOrColNum(row);
+		column = tempRightHalfArray[1] + "" + tempRightHalfArray[2];
+		colNum = getRowOrColNum(column);
+		
+		String rightHalfArraySubstitution1 = s1[rowNum][colNum];	
+		
 	}
 	
 	/**
