@@ -19,8 +19,6 @@ public class SimplifiedDES {
 	/** Inverse of initial permutation **/
 	private static final int[] INVERSE_IP = {4, 1, 3, 5, 7, 2, 8, 6};
 	
-	private static final int[] KEY = {0, 1, 1, 1, 1, 1, 1, 1, 0, 1};
-	
 	/** Substitution box 0 **/
 	private static final String[][] S0 = {{"01", "00", "11", "10"},
 											{"11", "10", "01", "00"},
@@ -36,11 +34,60 @@ public class SimplifiedDES {
 	private static final boolean DEBUG_OUTPUT_ENABLED = true;
 
 	public static void main(String[] args) {
-		int[] plainText = {1, 0, 1, 0, 1, 0, 0, 1};
+
+		// Test encryption
+		final int[] plainText = {0, 1, 1, 1, 0, 0, 1, 0};
+		final int[] key = {1, 0, 1, 0, 0, 0, 0, 0, 1, 0};
+		final int[] correctCipherText = {0, 1, 1, 1, 0, 1, 1, 1};
+
+		int[] cipherText = encrypt(plainText, key);
 		
-		System.out.println("Plaintext = " + 
-				generateStringFromIntArray(plainText));
-		System.out.println("Key = " + generateStringFromIntArray(KEY));
+		// Compare cipherText to correctCipherText to verify the correct
+		// cipherText was generated
+		boolean areEqual = Arrays.equals(cipherText, correctCipherText);	
+		if (areEqual) {
+			System.out.println("The correct ciphertext (" + 
+					generateStringFromIntArray(correctCipherText) + ") does " +
+					"equal the generated ciphertext (" + 
+					generateStringFromIntArray(cipherText) + ")!");
+		} else {
+			System.out.println("The correct ciphertext (" + 
+					generateStringFromIntArray(correctCipherText) + ") does " +
+					"not equal the generated ciphertext (" + 
+					generateStringFromIntArray(cipherText) + ")!");
+		}
+		
+		// Test decryption
+		int[] decryptedPlainText = decrypt(correctCipherText, key);
+		
+		// Compare decryptedPlainText to plainText to verify the correct
+		// plaintext was decrypted
+		areEqual = Arrays.equals(decryptedPlainText, plainText);	
+		if (areEqual) {
+			System.out.println("The correct plaintext (" + 
+					generateStringFromIntArray(plainText) + ") does " +
+					"equal the decrypted plaintext (" + 
+					generateStringFromIntArray(decryptedPlainText) + ")!");
+		} else {
+			System.out.println("The correct plaintext (" + 
+					generateStringFromIntArray(plainText) + ") does " +
+					"not equal the decrypted plaintext (" + 
+					generateStringFromIntArray(decryptedPlainText) + ")!");
+		}
+
+	}
+	
+	/**
+	 * Decrypt the given ciphertext using Simplified DES decryption with the 
+	 * given key.
+	 * @param plainText
+	 * @param key
+	 * @return the decrypted plaintext
+	 */
+	public static int[] decrypt(int[] cipherText, int[] key) {
+		System.out.println("Ciphertext = " + 
+				generateStringFromIntArray(cipherText));
+		System.out.println("Key = " + generateStringFromIntArray(key));
 		
 		// Generate K1 and K2 round keys
 		if (DEBUG_OUTPUT_ENABLED) {
@@ -48,7 +95,300 @@ public class SimplifiedDES {
 		}
 		
 		// P10 Permutation
-		int[] tempArray = permutate(KEY, P10);
+		int[] tempArray = permutate(key, P10);
+		
+		int tempLeftHalfArrayLength = tempArray.length/2;
+		int[] tempLeftHalfArray = new int[tempLeftHalfArrayLength];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempLeftHalfArray[i] = tempArray[i];
+		}
+		
+		int tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		int[] tempRightHalfArray = new int[tempRightHalfArrayLength];
+		int tempIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[tempIndex++] = tempArray[i];
+		}
+		
+		// LS-1 Shift on left half bits and right half bits
+		tempLeftHalfArray = shiftLeft(1, tempLeftHalfArray);
+		tempRightHalfArray = shiftLeft(1, tempRightHalfArray);
+		
+		// Combinate left half and right half bits
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempArray[i] = tempLeftHalfArray[i];
+		}
+		int rightHalfArrayIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; i++) {
+			tempArray[i] = tempRightHalfArray[rightHalfArrayIndex++];
+		}
+		
+		// P8 Permutation - minimizes from 10 bits to 8 bits
+		tempArray = permutate(tempArray, P8);
+		
+		// Round key 1
+		int[] k1 = Arrays.copyOf(tempArray, tempArray.length);
+		
+		// LS-2 Shift on left half bits and right half bits
+		tempLeftHalfArray = shiftLeft(2, tempLeftHalfArray);
+		tempRightHalfArray = shiftLeft(2, tempRightHalfArray);
+		
+		// Combine left half and right half bits
+		tempArray = new int[10];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempArray[i] = tempLeftHalfArray[i];
+		}
+		rightHalfArrayIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < 10; i++) {
+			tempArray[i] = tempRightHalfArray[rightHalfArrayIndex++];
+		}
+		
+		// P8 Permutation
+		tempArray = permutate(tempArray, P8);
+		
+		// Round key 2
+		int[] k2 = Arrays.copyOf(tempArray,	tempArray.length);
+		
+		System.out.println("K1 round key = " + generateStringFromIntArray(k1));
+		System.out.println("K2 round key = " + generateStringFromIntArray(k2));
+		
+		
+		// Decrypt the ciphertext now that the 2 round keys were generated
+		// and reversed
+		if (DEBUG_OUTPUT_ENABLED) {
+			System.out.println("Decrypting the ciphertext now...");
+		}
+		
+		// Initial Permutation on plain text
+		tempArray = permutate(cipherText, IP);
+		
+		// Split the 8 bit plaintext into two half arrays
+		tempLeftHalfArrayLength = tempArray.length/2;
+		tempLeftHalfArray = new int[tempLeftHalfArrayLength];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempLeftHalfArray[i] = tempArray[i];
+		}
+		
+		int[] ipLeftHalfArray = Arrays.copyOf(tempLeftHalfArray, 
+				tempLeftHalfArrayLength);
+		
+		tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		tempRightHalfArray = new int[tempRightHalfArrayLength];
+		tempIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[tempIndex++] = tempArray[i];
+		}
+		
+		int[] ipRightHalfArray = Arrays.copyOf(tempRightHalfArray, 
+				tempRightHalfArrayLength);
+		
+		// Expansion Permutation
+		tempArray = permutate(tempRightHalfArray, EP);
+		
+		// Use k2 here instead of k1 for decryption
+		tempArray = xor(tempArray, k2);
+		
+		// Split the 8 bit array into two half arrays
+		tempLeftHalfArrayLength = tempArray.length/2;
+		tempLeftHalfArray = new int[tempLeftHalfArrayLength];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempLeftHalfArray[i] = tempArray[i];
+		}
+		
+		tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		tempRightHalfArray = new int[tempRightHalfArrayLength];
+		tempIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[tempIndex++] = tempArray[i];
+		}
+		
+		// S0 - Substitution box 0
+		
+		// row = bit1, bit4
+		// column = bit2, bit3
+		String row = tempLeftHalfArray[0] + "" + tempLeftHalfArray[3];
+		int rowNum = getRowOrColNum(row);
+		String column = tempLeftHalfArray[1] + "" + tempLeftHalfArray[2];
+		int colNum = getRowOrColNum(column);
+		
+		String leftHalfArraySubstitution0 = S0[rowNum][colNum];	
+		
+		// S1 - Substitution box 1
+		// row = bit1, bit4
+		// column = bit2, bit3
+		row = tempRightHalfArray[0] + "" + tempRightHalfArray[3];
+		rowNum = getRowOrColNum(row);
+		column = tempRightHalfArray[1] + "" + tempRightHalfArray[2];
+		colNum = getRowOrColNum(column);
+		
+		String rightHalfArraySubstitution1 = S1[rowNum][colNum];	
+		
+		// Combine the left half substitution 0 and right half substitution 1
+		// arrays
+		tempArray = new int[4];
+		tempArray[0] = Integer.parseInt(leftHalfArraySubstitution0.charAt(0) + 
+				"");
+		tempArray[1] = Integer.parseInt(leftHalfArraySubstitution0.charAt(1) + 
+				"");
+		tempArray[2] = Integer.parseInt(rightHalfArraySubstitution1.charAt(0) + 
+				"");
+		tempArray[3] = Integer.parseInt(rightHalfArraySubstitution1.charAt(1) + 
+				"");
+		
+		// P4 Permutation
+		tempArray = permutate(tempArray, P4);
+		
+		tempArray = xor(ipLeftHalfArray, tempArray);
+		
+		// Swap tempArray with right half of Initial Permutation array into
+		// a new array
+		int[] swapTempArray = new int[8];
+		for (int i = 0; i < ipRightHalfArray.length; i++) {
+			swapTempArray[i] = ipRightHalfArray[i];
+		}
+		tempIndex = 4;
+		for (int i = 0; i < tempArray.length; i++) {
+			swapTempArray[tempIndex++] = tempArray[i];
+		}
+		
+		if (DEBUG_OUTPUT_ENABLED) {
+			System.out.println("swapTempArray after round 1 = " + 
+					generateStringFromIntArray(swapTempArray));
+		}
+		
+		// Round 2 of decryption for S-DES
+		
+		// Expansion Permutation
+		tempArray = new int[8];
+		tempRightHalfArray = new int[4];
+		tempIndex = 0;
+		for (int i = 4; i < 8; i++) {
+			tempRightHalfArray[tempIndex++] = swapTempArray[i];
+		}
+		tempArray = permutate(tempRightHalfArray, EP);
+		
+		tempArray = xor(tempArray, k1);
+		
+		// Split the 8 bit array into two half arrays
+		tempLeftHalfArrayLength = tempArray.length/2;
+		tempLeftHalfArray = new int[tempLeftHalfArrayLength];
+		for (int i = 0; i < tempLeftHalfArrayLength; i++) {
+			tempLeftHalfArray[i] = tempArray[i];
+		}
+		
+		tempRightHalfArrayLength = 
+				tempArray.length - tempLeftHalfArrayLength;
+		tempRightHalfArray = new int[tempRightHalfArrayLength];
+		tempIndex = 0;
+		for (int i = tempLeftHalfArrayLength; i < tempArray.length; 
+				i++) {
+			
+			tempRightHalfArray[tempIndex++] = tempArray[i];
+		}
+		
+		// S0 - Substitution box 0
+		
+		// row = bit1, bit4
+		// column = bit2, bit3
+		row = tempLeftHalfArray[0] + "" + tempLeftHalfArray[3];
+		rowNum = getRowOrColNum(row);
+		column = tempLeftHalfArray[1] + "" + tempLeftHalfArray[2];
+		colNum = getRowOrColNum(column);
+		
+		leftHalfArraySubstitution0 = S0[rowNum][colNum];	
+		
+		// S1 - Substitution box 1
+		// row = bit1, bit4
+		// column = bit2, bit3
+		row = tempRightHalfArray[0] + "" + tempRightHalfArray[3];
+		rowNum = getRowOrColNum(row);
+		column = tempRightHalfArray[1] + "" + tempRightHalfArray[2];
+		colNum = getRowOrColNum(column);
+		
+		rightHalfArraySubstitution1 = S1[rowNum][colNum];	
+		
+		// Combine the left half substitution 0 and right half substitution 1
+		// arrays
+		tempArray = new int[4];
+		tempArray[0] = Integer.parseInt(leftHalfArraySubstitution0.charAt(0) + 
+				"");
+		tempArray[1] = Integer.parseInt(leftHalfArraySubstitution0.charAt(1) + 
+				"");
+		tempArray[2] = Integer.parseInt(rightHalfArraySubstitution1.charAt(0) + 
+				"");
+		tempArray[3] = Integer.parseInt(rightHalfArraySubstitution1.charAt(1) + 
+				"");
+		
+		// P4 Permutation
+		tempArray = permutate(tempArray, P4);
+		
+		int[] swapTempArrayLeftHalf = new int[4];
+		for (int i = 0; i < 4; i++) {
+			swapTempArrayLeftHalf[i] = swapTempArray[i];
+		}
+
+		tempArray = xor(swapTempArrayLeftHalf, tempArray);
+		
+		// Combine array from previous xor and right half of swapTempArray
+		int[] swapTempArrayRightHalf = new int[4];
+		tempIndex = 0;
+		for (int i = 4; i < 8; i++) {
+			swapTempArrayRightHalf[tempIndex++] = swapTempArray[i];
+		}
+		
+		int[] round2Array = new int[8];
+		for (int i = 0; i < 4; i++) {
+			round2Array[i] = tempArray[i];
+		}
+		tempIndex = 0;
+		for (int i = 4; i < 8; i++) {
+			round2Array[i] = swapTempArrayRightHalf[tempIndex++];
+		}
+		
+		if (DEBUG_OUTPUT_ENABLED) {
+			System.out.println("round2 array = " + 
+					generateStringFromIntArray(round2Array));
+		}
+		
+		// IP^-1 - Inverse Permutation
+		tempArray = new int[8];
+		tempArray = inversePermutate(round2Array);	
+		
+		System.out.println("Plaintext = " + generateStringFromIntArray(
+				tempArray));
+		
+		return tempArray;
+	}
+	
+	/**
+	 * Encrypt the given plaintext using Simplified DES encryption with the
+	 * given key.
+	 * @param plainText
+	 * @param key
+	 * @return the encrypted ciphertext
+	 */
+	public static int[] encrypt(int[] plainText, int[] key) {
+		
+		System.out.println("Plaintext = " + 
+				generateStringFromIntArray(plainText));
+		System.out.println("Key = " + generateStringFromIntArray(key));
+		
+		// Generate K1 and K2 round keys
+		if (DEBUG_OUTPUT_ENABLED) {
+			System.out.println("Generating K1 and K2 round keys...");
+		}
+		
+		// P10 Permutation
+		int[] tempArray = permutate(key, P10);
 		
 		int tempLeftHalfArrayLength = tempArray.length/2;
 		int[] tempLeftHalfArray = new int[tempLeftHalfArrayLength];
@@ -216,7 +556,7 @@ public class SimplifiedDES {
 					generateStringFromIntArray(swapTempArray));
 		}
 		
-		// TODO: Round 2 of encryption for S-DES
+		// Round 2 of encryption for S-DES
 		
 		// Expansion Permutation
 		tempArray = new int[8];
@@ -317,7 +657,7 @@ public class SimplifiedDES {
 		System.out.println("Ciphertext = " + generateStringFromIntArray(
 				tempArray));
 		
-		// TODO: Decryption
+		return tempArray;
 	}
 	
 	/**
